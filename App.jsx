@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB9SC4vnKYCxQBRSv6mPaWGMAZ8c1S2SLU",
@@ -11,8 +12,13 @@ const firebaseConfig = {
   messagingSenderId: "807893892687",
   appId: "1:807893892687:web:0f83eb118757165098343a"
 };
+
+const ALLOWED_EMAILS = ["marcosforti618@gmail.com", "aldanamolinari93@gmail.com"];
+
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
+const auth = getAuth(fbApp);
+const provider = new GoogleAuthProvider();
 
 async function fbGet(key) {
   try {
@@ -289,6 +295,58 @@ function AnalisSection(gastos,anCat,setAnCat,anMes,setAnMes,anRango,setAnRango,f
 }
 
 export default function App() {
+  var [user, setUser] = useState(null);
+  var [authLoading, setAuthLoading] = useState(true);
+  var [authError, setAuthError] = useState("");
+
+  useEffect(function() {
+    return onAuthStateChanged(auth, function(u) {
+      setUser(u);
+      setAuthLoading(false);
+    });
+  }, []);
+
+  function handleLogin() {
+    setAuthError("");
+    signInWithPopup(auth, provider).then(function(result) {
+      var email = result.user.email;
+      if (!ALLOWED_EMAILS.includes(email)) {
+        signOut(auth);
+        setAuthError("Esta cuenta no tiene acceso a Gastos AM.");
+      }
+    }).catch(function(e) {
+      setAuthError("Error al iniciar sesión. Intentá de nuevo.");
+    });
+  }
+
+  function handleLogout() { signOut(auth); }
+
+  if (authLoading) {
+    return (
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"#F5F3EF",fontFamily:"-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"}}>
+        <p style={{color:"#9CA3AF",fontSize:14}}>Cargando...</p>
+      </div>
+    );
+  }
+
+  if (!user || !ALLOWED_EMAILS.includes(user.email)) {
+    return (
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"#F5F3EF",fontFamily:"-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif"}}>
+        <div style={{background:"#fff",borderRadius:20,padding:"48px 40px",boxShadow:"0 8px 40px rgba(0,0,0,0.10)",textAlign:"center",maxWidth:380,width:"100%"}}>
+          <div style={{background:"linear-gradient(135deg,#1a1f3a 0%,#3d4e8a 100%)",borderRadius:14,width:60,height:60,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px"}}>
+            <span style={{fontSize:28}}>💰</span>
+          </div>
+          <h1 style={{fontSize:22,fontWeight:700,color:"#1a1f3a",margin:"0 0 6px"}}>Gastos <span style={{color:"#C49A6C"}}>AM</span></h1>
+          <p style={{fontSize:13,color:"#9CA3AF",margin:"0 0 32px"}}>Organizador de gastos del hogar</p>
+          <button onClick={handleLogin} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,width:"100%",padding:"12px 20px",background:"#fff",border:"1.5px solid #E2DDD6",borderRadius:10,fontSize:14,fontWeight:600,color:"#1a1f3a",cursor:"pointer",fontFamily:"inherit",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
+            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            Ingresar con Google
+          </button>
+          {authError && <p style={{fontSize:12,color:"#E8303A",marginTop:12}}>{authError}</p>}
+        </div>
+      </div>
+    );
+  }
   var [gastos,setG]=useState([]);
   var [vista,setV]=useState("resumen");
   var [fMes,setFM]=useState(TODAY.getMonth()+1);
@@ -648,8 +706,11 @@ export default function App() {
             <div style={{marginTop:10,display:"flex",gap:6,flexWrap:"wrap"}}>
               {gastos.length>0 && <span className="badge">{gastos.length} registros</span>}
               {totM>0 && <span className="badge">{fmt(totM)} este mes</span>}
+              <span className="badge">{user.displayName||user.email}</span>
             </div>
           </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end"}}>
+            <button onClick={handleLogout} style={{fontSize:11,padding:"4px 10px",borderRadius:999,border:"1px solid rgba(255,255,255,0.3)",background:"transparent",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontFamily:"inherit"}}>Salir</button>
           <div className="mw">
             <p style={{fontSize:10,color:"rgba(255,255,255,0.45)",margin:"0 0 8px",fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase"}}>Moneda</p>
             <div style={{display:"flex",gap:4,marginBottom:8,flexWrap:"wrap"}}>
